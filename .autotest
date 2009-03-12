@@ -1,0 +1,43 @@
+require 'autotest/redgreen'  
+require 'autotest/timestamp'      
+
+module Autotest::Growl  
+  def self.growl title, msg, img, pri=0, sticky=""  
+    system "growlnotify -n autotest --image #{img} -p #{pri} -m #{msg.inspect} #{title} #{sticky}"  
+  end
+  
+  IMAGE_ROOT = "~/Pictures/autotest/" 
+  
+  def self.notify_unit(results)
+    output = results.slice(/(\d+)\stests,\s(\d+)\sassertions,\s(\d+)\sfailures,\s(\d+)\serrors/)  
+    if output  
+      if $~[3].to_i > 0 || $~[4].to_i > 0  
+        cnt = [(9 + $~[3].to_i + $~[4].to_i) / 10 * 10, 50].min  
+        growl "=====[ F A I L ]=====", "#{output}", IMAGE_ROOT + "fail#{cnt}.png", 2  
+      else  
+        growl "=====[ P A S S ]=====", "#{output}", IMAGE_ROOT + "pass.png"  
+      end  
+    end
+  end
+  
+  def self.notify_rspec(results)
+    output = results.slice(/(\d+)\s+examples?,\s*(\d+)\s+failures?(,\s*(\d+)\s+pending)?/)    
+    if output  =~ /[1-9]\sfailures?/
+      growl "=====[ F A I L ]=====", "#{output}", IMAGE_ROOT + "rails_fail.png", 2 
+    elsif output  =~ /[1-9]\spending?/
+      growl "=====[ P E N D ]=====", "#{output}", IMAGE_ROOT + "rails_pending.png", 1
+    else
+      growl "=====[ P A S S ]=====", "#{output}", IMAGE_ROOT + "rails_ok.png" 
+    end  
+  end
+  
+  Autotest.add_hook :ran_command do |at|  
+    results = [at.results].flatten.join("n")
+    case at.results[-1].split(",").first.split(" ")[1]
+    when "tests"
+      notify_unit(results)
+    when "examples"
+      notify_rspec(results)
+    end
+  end
+end          
